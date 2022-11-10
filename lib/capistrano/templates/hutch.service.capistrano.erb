@@ -1,0 +1,37 @@
+# This file tells systemd how to run hutch as a 24/7 long-running daemon.
+
+# Then run:
+#   - systemctl enable <%= hutch_service_unit_name(@config_file) %>
+#   - systemctl {start,stop,restart} <%= hutch_service_unit_name(@config_file) %>
+#
+# Use `journalctl -u <%= hutch_service_unit_name(@config_file) %> -rn 100` to view the last 100 lines of log output.
+#
+[Unit]
+Description=hutch for <%= "#{fetch(:application)} (#{fetch(:stage)})" %>
+After=syslog.target network.target
+
+[Service]
+Type=notify
+<%="User=#{hutch_user}" if fetch(:hutch_systemctl_user) == :system %>
+WorkingDirectory=<%= current_path %>
+ExecStart=<%= expanded_bundle_path %> exec hutch <%= hutch_config %>
+
+<%- Array(fetch(:hutch_service_unit_env_files)).each do |file| %>
+<%="EnvironmentFile=#{file}" %>
+<% end -%>
+<% Array(fetch(:hutch_service_unit_env_vars)).each do |environment_variable| %>
+<%="Environment=\"#{environment_variable}\"" %>
+<% end -%>
+<%= "Environment=#{hutch_systemd_env}" %> 
+
+# if we crash, restart
+RestartSec=1
+Restart=on-failure
+
+<%= "StandardOutput=append:#{fetch(:hutch_log)}" if fetch(:hutch_log) %>
+
+<%= "StandardError=append:#{fetch(:hutch_error_log)}" if fetch(:hutch_error_log) %>
+
+SyslogIdentifier=<%= hutch_service_unit_name(@config_file) %>
+[Install]
+WantedBy=<%=(fetch(:hutch_systemctl_user) == :system) ? "multi-user.target" : "default.target"%>
